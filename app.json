@@ -7,6 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "londonderry",
     "userInterfaceStyle": "automatic",
+    "extra": {
+      "EXPO_PUBLIC_SUPABASE_URL": "https://qmawzcmpomtvkdxmjzuq.supabase.co",
+      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFtYXd6Y21wb210dmtkeG1qenVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyNDc3MDAsImV4cCI6MjA3NDgyMzcwMH0.K_x_XIz2LcxbPvxZWX6XuCvAPcGCEEYUENGxJE84ssI"
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
@@ -38,7 +42,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

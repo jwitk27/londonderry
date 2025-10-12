@@ -24,10 +24,24 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="map"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Map',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="docs"
+        options={{
+          title: 'Docs',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="document.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="weather"
+        options={{
+          title: 'Weather',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="cloud.fill" color={color} />,
         }}
       />
     </Tabs>
