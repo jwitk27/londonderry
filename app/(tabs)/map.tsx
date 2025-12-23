@@ -66,13 +66,11 @@ export default function MapPage() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,            // ⬅️ nice padding around the image
-    backgroundColor: "#fff",
+    padding: 16
   },
   card: {
     borderRadius: 16,
     overflow: "hidden",
-    backgroundColor: "#fafafa",
     borderWidth: 1,
     borderColor: "#eee",
     padding: 12,            // inner padding to avoid touching edges
@@ -86,6 +84,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 16,
-    backgroundColor: "#fff",
   },
 });

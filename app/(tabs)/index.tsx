@@ -73,7 +73,7 @@ export default function HomeScreen() {
   if (loading) return <ActivityIndicator style={{ marginTop: 40 }} />;
 
   return (
-    <View style={{ flex:1, padding:16, backgroundColor:"#fff" }}>
+    <View style={{ flex:1, padding:16 }}>
       <Text style={{ fontSize:22, fontWeight:"700" }}>Bulletins</Text>
       <Text style={{ marginTop:4, color:"#6b7280" }}>
         {userEmail ? `Logged in as ${userEmail}${role ? ` (${role})` : ""}` : "Not logged in"}
@@ -102,8 +102,8 @@ export default function HomeScreen() {
       )}
 
       <Modal visible={showForm} animationType="slide" transparent>
-        <View style={{ flex:1, backgroundColor:"rgba(0,0,0,0.3)", justifyContent:"flex-end" }}>
-          <View style={{ backgroundColor:"#fff", padding:16, borderTopLeftRadius:16, borderTopRightRadius:16 }}>
+        <View style={{ flex:1, justifyContent:"flex-end" }}>
+          <View style={{ padding:16, borderTopLeftRadius:16, borderTopRightRadius:16 }}>
             <Text style={{ fontSize:18, fontWeight:"700", marginBottom:8 }}>Create bulletin</Text>
             <TextInput placeholder="Title" value={title} onChangeText={setTitle}
               style={{ borderWidth:1, borderColor:"#e5e7eb", borderRadius:8, padding:10, marginBottom:8 }} />
