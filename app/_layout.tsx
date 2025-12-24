@@ -44,6 +44,7 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: "transparent" },
+          animation: "none"
         }}
       />
     </LinearGradient>

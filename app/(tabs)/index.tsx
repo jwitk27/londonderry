@@ -4,6 +4,7 @@ import BulletinHeader from "@/components/bulletins/BulletinHeader";
 import BulletinList from "@/components/bulletins/BulletinList";
 import { styles } from "@/components/bulletins/ui";
 import { useBulletins } from "@/components/bulletins/useBulletins";
+import WeatherWidget from "@/components/weather/WeatherWidget";
 import { View } from "react-native";
 
 export default function HomeScreen() {
@@ -11,9 +12,15 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <BulletinHeader title="Bulletins" sub={b.userLabel} />
+      <BulletinHeader title="HOME" sub={b.userLabel} />
 
-      <BulletinList bulletins={b.bulletins} loading={b.loading} />
+      <BulletinList
+        bulletins={b.bulletins}
+        loading={b.loading}
+        isAdmin={b.isAdmin}
+        onTogglePin={b.togglePin}
+        footer={<WeatherWidget />}
+      />
 
       {b.isAdmin && <BulletinFab onPress={b.openForm} />}
 

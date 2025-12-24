@@ -43,10 +43,7 @@ export function useBulletins() {
 
   useEffect(() => {
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       setUserEmail(user?.email ?? null);
 
       if (!user) {
@@ -79,7 +76,6 @@ export function useBulletins() {
 
   const createBulletin = async () => {
     if (!profileId) return;
-
     if (!title.trim()) {
       Alert.alert("Title required");
       return;
@@ -100,20 +96,39 @@ export function useBulletins() {
     }
 
     await loadBulletins();
-
     setShowForm(false);
     setTitle("");
     setBody("");
   };
 
+  // ✅ Admin pin/unpin
+  const togglePin = async (id: string, nextPinned: boolean) => {
+    if (!isAdmin) return;
+
+    const { error } = await supabase
+      .from("bulletins")
+      .update({ pinned: nextPinned })
+      .eq("id", id);
+
+    if (error) {
+      Alert.alert("Error", error.message);
+      return;
+    }
+
+    // optimistic UI update
+    setBulletins((prev) =>
+      prev
+        .map((b) => (b.id === id ? { ...b, pinned: nextPinned } : b))
+        .sort((a, b) => Number(b.pinned) - Number(a.pinned) || +new Date(b.created_at) - +new Date(a.created_at))
+    );
+  };
+
   return {
-    // data
     bulletins,
     loading,
     isAdmin,
     userLabel,
 
-    // form
     showForm,
     title,
     body,
@@ -123,7 +138,7 @@ export function useBulletins() {
     closeForm,
     createBulletin,
 
-    // handy if you ever want manual refresh
+    togglePin,
     reload: loadBulletins,
   };
 }
