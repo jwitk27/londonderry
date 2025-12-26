@@ -13,8 +13,8 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
-        tabBarActiveTintColor: "green",
-        tabBarInactiveTintColor: "#ffffff",
+        tabBarActiveTintColor: "#5c705aff",
+        tabBarInactiveTintColor: "#ffffffff",
         sceneStyle: { backgroundColor: "transparent" },
         tabBarStyle: {
           backgroundColor: "transparent",
@@ -49,6 +49,9 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="cloud.fill" color={color} />,
         }}
       />
+      <Tabs.Screen name="bulletins/new" options={{ href: null }} />
+      <Tabs.Screen name="bulletins/[id]" options={{ href: null }} />
+      <Tabs.Screen name="staffDirectory" options={{ href: null }} />
     </Tabs>
   );
 }

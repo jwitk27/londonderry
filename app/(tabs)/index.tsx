@@ -1,38 +1,44 @@
 import BulletinFab from "@/components/bulletins/BulletinFab";
-import BulletinFormSheet from "@/components/bulletins/BulletinFormSheet";
-import BulletinHeader from "@/components/bulletins/BulletinHeader";
 import BulletinList from "@/components/bulletins/BulletinList";
 import { styles } from "@/components/bulletins/ui";
 import { useBulletins } from "@/components/bulletins/useBulletins";
+import PageHeader from "@/components/ui/PageHeader";
 import WeatherWidget from "@/components/weather/WeatherWidget";
-import { View } from "react-native";
+import { router } from "expo-router";
+import { Pressable, Text, View } from "react-native";
 
 export default function HomeScreen() {
   const b = useBulletins();
 
   return (
     <View style={styles.screen}>
-      <BulletinHeader title="HOME" sub={b.userLabel} />
+      <PageHeader title="Home" sub={b.userLabel} />
 
       <BulletinList
         bulletins={b.bulletins}
         loading={b.loading}
         isAdmin={b.isAdmin}
         onTogglePin={b.togglePin}
-        footer={<WeatherWidget />}
+        onRefresh={b.reload}
+        footer={
+          <View>
+            <Pressable onPress={() => router.push("/weather")}>
+              <WeatherWidget />
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push("/staffDirectory")}
+              style={{ marginTop: 14 }}
+            >
+              <Text style={{ color: "#767480ff", textDecorationLine: 'underline' }}>
+                Staff Directory
+              </Text>
+            </Pressable>
+          </View>
+        }
       />
 
-      {b.isAdmin && <BulletinFab onPress={b.openForm} />}
-
-      <BulletinFormSheet
-        visible={b.showForm}
-        title={b.title}
-        body={b.body}
-        onChangeTitle={b.setTitle}
-        onChangeBody={b.setBody}
-        onCancel={b.closeForm}
-        onCreate={b.createBulletin}
-      />
+      {b.isAdmin && <BulletinFab />}
     </View>
   );
 }

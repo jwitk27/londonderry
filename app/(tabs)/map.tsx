@@ -39,8 +39,8 @@ export default function MapPage() {
   // “random” markers (edit these whenever)
   const markers: Marker[] = useMemo(
     () => [
-      { id: "m1", x: 0.18, y: 0.25, label: "Office" },
-      { id: "m2", x: 0.42, y: 0.55, label: "Dining" },
+      { id: "m1", x: 0.52, y: 0.68, label: "This is the (somethingfields), not sure how it's spelled or what it actually says, but hey it's a tooltip anywho!" },
+      { id: "m2", x: 0.624, y: 0.46, label: "Community Center & Dining Room. This is where ya eat! and play bingo" },
       { id: "m3", x: 0.72, y: 0.33, label: "Parking" },
       { id: "m4", x: 0.63, y: 0.78, label: "Gym" },
     ],

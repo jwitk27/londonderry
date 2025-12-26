@@ -16,7 +16,7 @@ export const ui = {
 };
 
 export const styles = StyleSheet.create({
-  screen: { flex: 1, padding: ui.s.screen },
+  screen: { flex: 1, padding: ui.s.screen, paddingBottom: 60 },
 
   headerTitle: { fontSize: 22, fontWeight: "800", color: ui.colors.text },
   headerSub: { marginTop: 4, color: ui.colors.muted },

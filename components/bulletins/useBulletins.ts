@@ -7,22 +7,17 @@ type Role = "resident" | "admin" | null;
 export type Bulletin = {
   id: string;
   title: string;
-  body: string | null;
+  body_html: string | null;
   pinned: boolean;
   created_at: string;
 };
 
 export function useBulletins() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [profileId, setProfileId] = useState<string | null>(null);
   const [role, setRole] = useState<Role>(null);
 
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
 
   const isAdmin = role === "admin";
 
@@ -31,15 +26,32 @@ export function useBulletins() {
     : "Not logged in";
 
   const loadBulletins = async () => {
+    setLoading(true);
+
     const { data, error } = await supabase
       .from("bulletins")
-      .select("id,title,body,pinned,created_at")
+      .select("id,title,body_html,pinned,created_at")
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (error) console.log(error);
+
     setBulletins((data as Bulletin[]) || []);
+    setLoading(false);
   };
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("bulletins_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bulletins" }, () => {
+        loadBulletins();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadBulletins]);
 
   useEffect(() => {
     (async () => {
@@ -53,7 +65,7 @@ export function useBulletins() {
 
       const { data: prof, error: pErr } = await supabase
         .from("profiles")
-        .select("id, role")
+        .select("role")
         .eq("auth_uid", user.id)
         .single();
 
@@ -63,7 +75,6 @@ export function useBulletins() {
         return;
       }
 
-      setProfileId(prof.id);
       setRole(prof.role as Role);
 
       await loadBulletins();
@@ -71,37 +82,6 @@ export function useBulletins() {
     })();
   }, []);
 
-  const openForm = () => setShowForm(true);
-  const closeForm = () => setShowForm(false);
-
-  const createBulletin = async () => {
-    if (!profileId) return;
-    if (!title.trim()) {
-      Alert.alert("Title required");
-      return;
-    }
-
-    const { error } = await supabase.from("bulletins").insert([
-      {
-        title: title.trim(),
-        body: body.trim() || null,
-        pinned: false,
-        created_by: profileId,
-      },
-    ]);
-
-    if (error) {
-      Alert.alert("Error", error.message);
-      return;
-    }
-
-    await loadBulletins();
-    setShowForm(false);
-    setTitle("");
-    setBody("");
-  };
-
-  // ✅ Admin pin/unpin
   const togglePin = async (id: string, nextPinned: boolean) => {
     if (!isAdmin) return;
 
@@ -110,16 +90,16 @@ export function useBulletins() {
       .update({ pinned: nextPinned })
       .eq("id", id);
 
-    if (error) {
-      Alert.alert("Error", error.message);
-      return;
-    }
+    if (error) return Alert.alert("Error", error.message);
 
-    // optimistic UI update
     setBulletins((prev) =>
       prev
         .map((b) => (b.id === id ? { ...b, pinned: nextPinned } : b))
-        .sort((a, b) => Number(b.pinned) - Number(a.pinned) || +new Date(b.created_at) - +new Date(a.created_at))
+        .sort(
+          (a, b) =>
+            Number(b.pinned) - Number(a.pinned) ||
+            +new Date(b.created_at) - +new Date(a.created_at)
+        )
     );
   };
 
@@ -128,16 +108,6 @@ export function useBulletins() {
     loading,
     isAdmin,
     userLabel,
-
-    showForm,
-    title,
-    body,
-    setTitle,
-    setBody,
-    openForm,
-    closeForm,
-    createBulletin,
-
     togglePin,
     reload: loadBulletins,
   };

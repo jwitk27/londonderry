@@ -9,6 +9,13 @@ function fmtDate(d: string) {
   return `${month}, ${dt.getDate()}`;
 }
 
+const excerpt = (html?: string | null) =>
+  (html || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+
 export default function BulletinCard({
   item,
   isAdmin,
@@ -24,17 +31,20 @@ export default function BulletinCard({
         styles.cardBase,
         item.pinned ? styles.cardPinned : styles.cardNormal,
       ]}
-      onPress={() => router.push(`/bulletins/${item.id}`)}
+      onPress={() => router.push(`/(tabs)/bulletins/${item.id}`)}
     >
-      {item.pinned ? <Text style={styles.important}>IMPORTANT PINNED ALERT</Text> : null}
+      {item.pinned ? (
+        <Text style={styles.important}>IMPORTANT PINNED ALERT</Text>
+      ) : null}
 
       <View style={styles.row}>
         {/* LEFT */}
         <View style={{ flex: 1, paddingRight: 12 }}>
           <Text style={styles.title}>{item.title}</Text>
-          {item.body ? (
+
+          {item.body_html ? (
             <Text style={styles.body} numberOfLines={2}>
-              {item.body}
+              {excerpt(item.body_html)}
             </Text>
           ) : null}
         </View>
@@ -51,7 +61,9 @@ export default function BulletinCard({
                 onTogglePin(item.id, !item.pinned);
               }}
             >
-              <Text style={styles.pinBtnText}>{item.pinned ? "Unpin" : "Pin"}</Text>
+              <Text style={styles.pinBtnText}>
+                {item.pinned ? "Unpin" : "Pin"}
+              </Text>
             </Pressable>
           )}
         </View>
