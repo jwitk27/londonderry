@@ -42,6 +42,7 @@ export default function RootLayout() {
     <LinearGradient colors={["#fff", "#82af43"]} style={{ flex: 1 }}>
       <Stack
         screenOptions={{
+          gestureEnabled: true,
           headerShown: false,
           contentStyle: { backgroundColor: "transparent" },
           animation: "none"

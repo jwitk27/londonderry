@@ -27,12 +27,27 @@ const BUCKET = "docs";
 export default function DocumentsScreen() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [uid, setUid] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       setUid(user?.id ?? null);
+
+      if (user?.id) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", user.id)
+          .single();
+
+        if (!error) setIsAdmin(!!data?.is_admin);
+      }
+
       await refresh();
     })();
   }, []);
@@ -62,7 +77,9 @@ export default function DocumentsScreen() {
     if (!uid) return Alert.alert("Not logged in");
     if (uploading) return;
 
-    const pick = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+    const pick = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+    });
     if (pick.canceled || !pick.assets?.length) return;
 
     const f = pick.assets[0];
@@ -77,19 +94,19 @@ export default function DocumentsScreen() {
       const res = await fetch(f.uri);
       const arrayBuffer = await res.arrayBuffer();
 
-      const up = await supabase.storage.from(BUCKET).upload(
-        key,
-        arrayBuffer, // ✅ real file bytes
-        {
-          contentType: f.mimeType || "application/octet-stream",
-          upsert: false,
-        }
-      );
+      const up = await supabase.storage.from(BUCKET).upload(key, arrayBuffer, {
+        contentType: f.mimeType || "application/octet-stream",
+        upsert: false,
+      });
       if (up.error) throw up.error;
 
-
       const ins = await supabase.from("documents").insert([
-        { title: fileName, path: key, owner_auth_uid: uid, is_priority },
+        {
+          title: fileName,
+          path: key,
+          owner_auth_uid: uid,
+          is_priority,
+        },
       ]);
       if (ins.error) throw ins.error;
 
@@ -103,8 +120,13 @@ export default function DocumentsScreen() {
   };
 
   const download = async (path: string) => {
-    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 600);
-    if (error || !data?.signedUrl) return Alert.alert("Link error", error?.message || "No URL");
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(path, 600);
+
+    if (error || !data?.signedUrl)
+      return Alert.alert("Link error", error?.message || "No URL");
+
     Linking.openURL(data.signedUrl);
   };
 
@@ -119,7 +141,9 @@ export default function DocumentsScreen() {
       onPress={() => download(item.path)}
       style={variant === "priority" ? styles.rowPriority : styles.row}
     >
-      <Text style={variant === "priority" ? styles.rowTitlePriority : styles.rowTitle}>
+      <Text
+        style={variant === "priority" ? styles.rowTitlePriority : styles.rowTitle}
+      >
         {item.title}
       </Text>
     </Pressable>
@@ -127,15 +151,17 @@ export default function DocumentsScreen() {
 
   return (
     <View style={styles.screen}>
-      <PageHeader title="Londonderry Documents" sub="" />
+      <PageHeader title="Londonderry Documents" />
 
-      <View style={{ marginTop: 10 }}>
-        <Button
-          title={uploading ? "Uploading..." : "Upload a document"}
-          onPress={upload}
-          disabled={uploading}
-        />
-      </View>
+      {isAdmin && (
+        <View style={{ marginTop: 10 }}>
+          <Button
+            title={uploading ? "Uploading..." : "Upload a document"}
+            onPress={upload}
+            disabled={uploading}
+          />
+        </View>
+      )}
 
       <ScrollView style={{ marginTop: 14 }} contentContainerStyle={{ paddingBottom: 24 }}>
         {general.length === 0 ? (
@@ -144,25 +170,27 @@ export default function DocumentsScreen() {
           <FlatList
             data={general}
             keyExtractor={(d) => d.id}
-            renderItem={({ item }) => <DocRow item={item} variant="general" />}
+            renderItem={({ item }) => <DocRow item={item} />}
             ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
             scrollEnabled={false}
           />
         )}
 
-        {priority.length > 0 ? (
+        {priority.length > 0 && (
           <>
             <View style={{ height: 18 }} />
             <Text style={styles.priorityTitle}>PRIORITY LIST</Text>
             <FlatList
               data={priority}
               keyExtractor={(d) => d.id}
-              renderItem={({ item }) => <DocRow item={item} variant="priority" />}
+              renderItem={({ item }) => (
+                <DocRow item={item} variant="priority" />
+              )}
               ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
               scrollEnabled={false}
             />
           </>
-        ) : null}
+        )}
       </ScrollView>
     </View>
   );
@@ -171,24 +199,18 @@ export default function DocumentsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, padding: 16 },
 
-  sectionHeader: { marginTop: 10, marginBottom: 10 },
-  sectionTitle: {
-    fontSize: 14,
-    letterSpacing: 1,
-    fontWeight: "900",
-    color: "#9ca3af",
-  },
-  sectionLine: { marginTop: 8, height: 1, backgroundColor: "#e5e7eb" },
-
   row: {
     alignSelf: "flex-start",
     backgroundColor: "#84a83a",
     paddingHorizontal: 14,
     paddingVertical: 5,
-    borderRadius: 0,
   },
-  
-  rowTitle: { fontWeight: "900", color: "#fff", letterSpacing: 0.5 },
+  rowTitle: {
+    fontWeight: "900",
+    color: "#fff",
+    letterSpacing: 0.5,
+    fontSize: 18,
+  },
 
   empty: { color: "#6b7280", marginTop: 12 },
 
@@ -196,16 +218,16 @@ const styles = StyleSheet.create({
     color: "#5c7bbfff",
     fontWeight: "900",
     textDecorationLine: "underline",
-    marginBottom: 10
+    marginBottom: 10,
+    fontSize: 20,
   },
 
   rowPriority: {
-    paddingVertical: 0, // no box
+    paddingVertical: 0,
   },
-
   rowTitlePriority: {
     color: "#5c7bbfff",
     fontWeight: "700",
-    marginBottom: 0
+    fontSize: 18,
   },
 });

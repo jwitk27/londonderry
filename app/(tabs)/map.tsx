@@ -1,6 +1,7 @@
 // app/(tabs)/map.tsx
 import { MaterialIcons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -13,11 +14,9 @@ import {
 } from "react-native";
 import { supabase } from "../../lib/supabase";
 
-
 const BUCKET = "assets";
 const KEY = "maps/site-plan.jpg";
 
-// Markers use "image coordinates" as percent of the image (0..1)
 type Marker = {
   id: string;
   x: number; // 0..1
@@ -31,16 +30,35 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // space available for the map (between top and tabs)
-  const [mapH, setMapH] = useState<number>(0);
+  const [mapH, setMapH] = useState(0);
+  const scrollerRef = useRef<ScrollView>(null);
 
   const [active, setActive] = useState<Marker | null>(null);
 
-  // “random” markers (edit these whenever)
+  // overlay hint
+  const [hint, setHint] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      setHint(true);
+    }, [])
+  );
+
   const markers: Marker[] = useMemo(
     () => [
-      { id: "m1", x: 0.52, y: 0.68, label: "This is the (somethingfields), not sure how it's spelled or what it actually says, but hey it's a tooltip anywho!" },
-      { id: "m2", x: 0.624, y: 0.46, label: "Community Center & Dining Room. This is where ya eat! and play bingo" },
+      {
+        id: "m1",
+        x: 0.52,
+        y: 0.68,
+        label:
+          "This is the (somethingfields), not sure how it's spelled or what it actually says, but hey it's a tooltip anywho!",
+      },
+      {
+        id: "m2",
+        x: 0.624,
+        y: 0.46,
+        label: "Community Center & Dining Room. This is where ya eat! and play bingo",
+      },
       { id: "m3", x: 0.72, y: 0.33, label: "Parking" },
       { id: "m4", x: 0.63, y: 0.78, label: "Gym" },
     ],
@@ -75,6 +93,15 @@ export default function MapPage() {
     return Math.round(mapH * ratio);
   }, [ratio, mapH]);
 
+  // center the scroll position after layout
+  useEffect(() => {
+    if (!mapW || !mapH) return;
+    requestAnimationFrame(() => {
+      const x = Math.max(0, (mapW - 1) / 2);
+      scrollerRef.current?.scrollTo({ x, y: 0, animated: false });
+    });
+  }, [mapW, mapH]);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -92,21 +119,20 @@ export default function MapPage() {
   }
 
   return (
-    <View
-      style={styles.screen}
-      onLayout={(e) => setMapH(e.nativeEvent.layout.height)}
-    >
+    <View style={styles.screen} onLayout={(e) => setMapH(e.nativeEvent.layout.height)}>
       {!mapH || !ratio ? (
         <View style={styles.center}>
           <ActivityIndicator />
         </View>
       ) : (
         <ScrollView
+          ref={scrollerRef}
           horizontal
           style={styles.scroller}
           contentContainerStyle={[styles.scrollerContent, { height: mapH }]}
           showsHorizontalScrollIndicator
           bounces={false}
+          scrollEnabled
         >
           <View style={[styles.mapWrap, { width: mapW, height: mapH }]}>
             <Image
@@ -116,18 +142,25 @@ export default function MapPage() {
             />
 
             {/* Markers layer */}
-            <View style={[StyleSheet.absoluteFillObject]}>
+            <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
               {markers.map((m) => (
                 <Pressable
                   key={m.id}
-                  onPress={() => setActive(m)}
+                  onPress={() => {
+                    setHint(false);
+                    setActive(m);
+                  }}
                   style={{
                     position: "absolute",
-                    left: m.x * mapW - 12,
-                    top: m.y * mapH - 24,
+                    left: m.x * mapW - MARKER_HIT / 2,
+                    top: m.y * mapH - MARKER_HIT,
+                    width: MARKER_HIT,
+                    height: MARKER_HIT,
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  <MaterialIcons name="place" size={32} color="#e11d48" />
+                  <MaterialIcons name="place" size={MARKER_ICON} color="#e11d48" />
                 </Pressable>
               ))}
             </View>
@@ -135,7 +168,17 @@ export default function MapPage() {
         </ScrollView>
       )}
 
-      {/* Tooltip */}
+      {/* Overlay hint */}
+      {hint && (
+        <Pressable style={styles.hintWrap} onPress={() => setHint(false)}>
+          <View style={styles.hintCard}>
+            <Text style={styles.hintTitle}>Swipe left / right to scroll</Text>
+            <Text style={styles.hintSub}>Tap a pin for details</Text>
+          </View>
+        </Pressable>
+      )}
+
+      {/* Tooltip (marker modal) */}
       <Modal visible={!!active} transparent animationType="fade">
         <Pressable style={styles.modalBg} onPress={() => setActive(null)}>
           <View style={styles.tooltip}>
@@ -148,42 +191,22 @@ export default function MapPage() {
   );
 }
 
-const MARKER_SIZE = 24;
+const MARKER_ICON = 46;
+const MARKER_HIT = 52;
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1, // fills between top and tabs
-  },
-  scroller: {
-    flex: 1,
-  },
-  scrollerContent: {
-    alignItems: "center",
-  },
-  mapWrap: {
-    position: "relative",
-  },
-  marker: {
-    position: "absolute",
-    width: MARKER_SIZE,
-    alignItems: "center",
-  },
-  pin: {
-    width: MARKER_SIZE,
-    height: MARKER_SIZE,
-    backgroundColor: "#e11d48",
-    transform: [{ rotate: "45deg" }],
-    borderRadius: MARKER_SIZE / 2,
-    borderTopLeftRadius: 0,
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
+  screen: { flex: 1 },
+  scroller: { flex: 1 },
+  scrollerContent: { alignItems: "center" },
+  mapWrap: { position: "relative" },
+
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 16,
   },
+
   modalBg: {
     flex: 1,
     justifyContent: "center",
@@ -196,14 +219,36 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     minWidth: 220,
+    maxWidth: 340,
   },
-  tooltipTitle: {
-    fontSize: 16,
+  tooltipTitle: { fontSize: 16, fontWeight: "700", marginBottom: 4 },
+  tooltipSub: { color: "#6b7280", fontSize: 12 },
+
+  hintWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 56,
+    alignItems: "center",
+    zIndex: 50,
+  },
+  hintCard: {
+    backgroundColor: "rgba(0,0,0,0.65)",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+  },
+  hintTitle: {
+    color: "white",
     fontWeight: "700",
-    marginBottom: 4,
+    fontSize: 14,
+    textAlign: "center",
   },
-  tooltipSub: {
-    color: "#6b7280",
+  hintSub: {
+    color: "white",
+    opacity: 0.9,
     fontSize: 12,
+    marginTop: 2,
+    textAlign: "center",
   },
 });
