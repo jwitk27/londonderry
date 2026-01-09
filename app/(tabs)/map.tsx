@@ -1,21 +1,24 @@
 // app/(tabs)/map.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import ImageZoom from "react-native-image-pan-zoom";
+import { SvgUri } from "react-native-svg";
 import { supabase } from "../../lib/supabase";
 
 const BUCKET = "assets";
-const KEY = "maps/site-plan.jpg";
+const KEY = "maps/map-revision.svg";
+
+// SVG needs a fixed aspect ratio (width/height)
+const MAP_RATIO = 4 / 3;
 
 type Marker = {
   id: string;
@@ -26,23 +29,26 @@ type Marker = {
 
 export default function MapPage() {
   const [url, setUrl] = useState<string | null>(null);
-  const [ratio, setRatio] = useState<number | null>(null); // width/height
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-
-  const [mapH, setMapH] = useState(0);
-  const scrollerRef = useRef<ScrollView>(null);
 
   const [active, setActive] = useState<Marker | null>(null);
 
   // overlay hint
   const [hint, setHint] = useState(true);
-
   useFocusEffect(
     useCallback(() => {
       setHint(true);
     }, [])
   );
+
+  // layout (needed for ImageZoom crop size)
+  const [cropW, setCropW] = useState(0);
+  const [cropH, setCropH] = useState(0);
+
+  // content size (what ImageZoom thinks it is zooming)
+  const contentH = cropH;
+  const contentW = useMemo(() => (contentH ? Math.round(contentH * MAP_RATIO) : 0), [contentH]);
 
   const markers: Marker[] = useMemo(
     () => [
@@ -74,12 +80,6 @@ export default function MapPage() {
 
         if (error || !data?.signedUrl) throw new Error(error?.message || "No URL");
         setUrl(data.signedUrl);
-
-        Image.getSize(
-          data.signedUrl,
-          (w, h) => setRatio(w / h),
-          () => setRatio(4 / 3)
-        );
       } catch (e: any) {
         setErr(e.message || "Failed to load map");
       } finally {
@@ -87,20 +87,6 @@ export default function MapPage() {
       }
     })();
   }, []);
-
-  const mapW = useMemo(() => {
-    if (!ratio || !mapH) return 0;
-    return Math.round(mapH * ratio);
-  }, [ratio, mapH]);
-
-  // center the scroll position after layout
-  useEffect(() => {
-    if (!mapW || !mapH) return;
-    requestAnimationFrame(() => {
-      const x = Math.max(0, (mapW - 1) / 2);
-      scrollerRef.current?.scrollTo({ x, y: 0, animated: false });
-    });
-  }, [mapW, mapH]);
 
   if (loading) {
     return (
@@ -119,29 +105,39 @@ export default function MapPage() {
   }
 
   return (
-    <View style={styles.screen} onLayout={(e) => setMapH(e.nativeEvent.layout.height)}>
-      {!mapH || !ratio ? (
+    <View
+      style={styles.screen}
+      onLayout={(e) => {
+        setCropW(e.nativeEvent.layout.width);
+        setCropH(e.nativeEvent.layout.height);
+      }}
+    >
+      {!cropW || !cropH || !contentW || !contentH ? (
         <View style={styles.center}>
           <ActivityIndicator />
         </View>
       ) : (
-        <ScrollView
-          ref={scrollerRef}
-          horizontal
-          style={styles.scroller}
-          contentContainerStyle={[styles.scrollerContent, { height: mapH }]}
-          showsHorizontalScrollIndicator
-          bounces={false}
-          scrollEnabled
+        <ImageZoom
+          cropWidth={cropW}
+          cropHeight={cropH}
+          imageWidth={contentW}
+          imageHeight={contentH}
+          minScale={1}
+          maxScale={4}
+          enableCenterFocus={false}
+          useNativeDriver
+          style={{ backgroundColor: "transparent" }}
+          onMove={() => {
+            // hide hint once they interact
+            // (fires a lot; but harmless)
+            if (hint) setHint(false);
+          }}
         >
-          <View style={[styles.mapWrap, { width: mapW, height: mapH }]}>
-            <Image
-              source={{ uri: url }}
-              resizeMode="stretch"
-              style={{ width: mapW, height: mapH }}
-            />
+          <View style={{ width: contentW, height: contentH, backgroundColor: "transparent" }}>
+            {/* Map */}
+            <SvgUri uri={url} width={contentW} height={contentH} />
 
-            {/* Markers layer */}
+            {/* Markers (inside zoom so they scale/pan with map) */}
             <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
               {markers.map((m) => (
                 <Pressable
@@ -152,8 +148,8 @@ export default function MapPage() {
                   }}
                   style={{
                     position: "absolute",
-                    left: m.x * mapW - MARKER_HIT / 2,
-                    top: m.y * mapH - MARKER_HIT,
+                    left: m.x * contentW - MARKER_HIT / 2,
+                    top: m.y * contentH - MARKER_HIT,
                     width: MARKER_HIT,
                     height: MARKER_HIT,
                     alignItems: "center",
@@ -165,14 +161,14 @@ export default function MapPage() {
               ))}
             </View>
           </View>
-        </ScrollView>
+        </ImageZoom>
       )}
 
       {/* Overlay hint */}
       {hint && (
         <Pressable style={styles.hintWrap} onPress={() => setHint(false)}>
           <View style={styles.hintCard}>
-            <Text style={styles.hintTitle}>Swipe left / right to scroll</Text>
+            <Text style={styles.hintTitle}>Pinch to zoom • Drag to pan</Text>
             <Text style={styles.hintSub}>Tap a pin for details</Text>
           </View>
         </Pressable>
@@ -196,9 +192,6 @@ const MARKER_HIT = 52;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  scroller: { flex: 1 },
-  scrollerContent: { alignItems: "center" },
-  mapWrap: { position: "relative" },
 
   center: {
     flex: 1,

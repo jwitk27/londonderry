@@ -2,6 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "../lib/supabase";
 
 export default function RootLayout() {
@@ -40,6 +41,7 @@ export default function RootLayout() {
 
   return (
     <LinearGradient colors={["#fff", "#82af43"]} style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack
         screenOptions={{
           gestureEnabled: true,
@@ -48,6 +50,7 @@ export default function RootLayout() {
           animation: "none"
         }}
       />
+      </GestureHandlerRootView>
     </LinearGradient>
   );
 }
