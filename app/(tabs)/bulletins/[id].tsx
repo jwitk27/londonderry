@@ -1,9 +1,10 @@
 import PageHeader from "@/components/ui/PageHeader";
 import { supabase } from "@/lib/supabase";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +12,8 @@ import {
   View,
 } from "react-native";
 import RenderHtml from "react-native-render-html";
+
+type Role = "resident" | "admin" | null;
 
 type Bulletin = {
   id: string;
@@ -22,40 +25,57 @@ type Bulletin = {
 
 export default function BulletinDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { width } = useWindowDimensions();
 
   const [item, setItem] = useState<Bulletin | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-useEffect(() => {
-  if (!id) return;
+  useEffect(() => {
+    let cancelled = false;
 
-  let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return setIsAdmin(false);
 
-  // ✅ clear old bulletin immediately so you don't flash it
-  setItem(null);
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("auth_uid", user.id)
+        .single();
 
-  (async () => {
-    const { data, error } = await supabase
-      .from("bulletins")
-      .select("id,title,body_html,pinned,created_at")
-      .eq("id", id)
-      .single();
+      if (!cancelled) setIsAdmin(prof?.role === "admin");
+    })();
 
-    if (cancelled) return;
+    return () => { cancelled = true; };
+  }, []);
 
-    if (error) {
-      console.log(error);
-      setItem(null);
-      return;
-    }
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
 
-    setItem(data as Bulletin);
-  })();
+    setItem(null);
 
-  return () => {
-    cancelled = true;
-  };
-}, [id]);
+    (async () => {
+      const { data, error } = await supabase
+        .from("bulletins")
+        .select("id,title,body_html,pinned,created_at")
+        .eq("id", id)
+        .single();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.log(error);
+        setItem(null);
+        return;
+      }
+
+      setItem(data as Bulletin);
+    })();
+
+    return () => { cancelled = true; };
+  }, [id]);
 
   const html = useMemo(() => item?.body_html || "<p></p>", [item?.body_html]);
 
@@ -63,12 +83,19 @@ useEffect(() => {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {item.pinned ? (
-        <Text style={styles.pinned}>IMPORTANT PINNED ALERT</Text>
-      ) : null}
-
       <PageHeader title={item.title} />
       <Text style={styles.meta}>{new Date(item.created_at).toLocaleString()}</Text>
+
+      {isAdmin ? (
+        <View style={{ alignItems: "flex-end", marginTop: 10 }}>
+          <Pressable
+            onPress={() => router.push(`/bulletins/${item.id}/edit`)}
+            style={styles.editBtn}
+          >
+            <Text style={styles.editBtnText}>Edit</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={{ marginTop: 14 }}>
         <RenderHtml
@@ -89,13 +116,17 @@ useEffect(() => {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: 16 },
-  pinned: {
-    color: "#be123c",
-    fontWeight: "900",
-    marginBottom: 6,
-    fontSize: 12,
-  },
-  title: { fontSize: 26, fontWeight: "900", color: "#111827" },
+  pinned: { color: "#be123c", fontWeight: "900", marginBottom: 6, fontSize: 12 },
   meta: { marginTop: 6, color: "#6b7280", fontWeight: "600" },
   htmlBase: { color: "#111827", fontSize: 16 },
+
+  editBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    backgroundColor: "#fff",
+  },
+  editBtnText: { fontWeight: "900", color: "#111827" },
 });

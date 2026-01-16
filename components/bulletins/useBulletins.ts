@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "react-native";
 
 type Role = "resident" | "admin" | null;
@@ -21,31 +21,38 @@ export function useBulletins() {
 
   const isAdmin = role === "admin";
 
-  const userLabel = userEmail
-    ? `Logged in as ${userEmail}${role ? ` (${role})` : ""}`
-    : "Not logged in";
+  const userLabel = useMemo(() => {
+    return userEmail
+      ? `Logged in as ${userEmail}${role ? ` (${role})` : ""}`
+      : "Not logged in";
+  }, [userEmail, role]);
 
-  const loadBulletins = async () => {
-    setLoading(true);
-
+  const loadBulletins = useCallback(async () => {
     const { data, error } = await supabase
       .from("bulletins")
       .select("id,title,body_html,pinned,created_at")
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
 
-    if (error) console.log(error);
+    if (error) {
+      console.log(error);
+      return;
+    }
 
     setBulletins((data as Bulletin[]) || []);
-    setLoading(false);
-  };
+  }, []);
 
+  // realtime subscription (IMPORTANT: loadBulletins must be stable via useCallback)
   useEffect(() => {
     const channel = supabase
       .channel("bulletins_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "bulletins" }, () => {
-        loadBulletins();
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bulletins" },
+        () => {
+          loadBulletins();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -53,12 +60,26 @@ export function useBulletins() {
     };
   }, [loadBulletins]);
 
+  // initial load + role lookup
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      setLoading(true);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
       setUserEmail(user?.email ?? null);
 
+      // Everyone can read bulletins (your policy shows anon+authed), so load either way
+      await loadBulletins();
+
       if (!user) {
+        setRole(null);
         setLoading(false);
         return;
       }
@@ -69,39 +90,45 @@ export function useBulletins() {
         .eq("auth_uid", user.id)
         .single();
 
-      if (pErr) {
-        console.log(pErr);
+      if (!cancelled) {
+        if (pErr) {
+          console.log(pErr);
+          setRole(null);
+        } else {
+          setRole((prof?.role as Role) ?? null);
+        }
         setLoading(false);
-        return;
       }
-
-      setRole(prof.role as Role);
-
-      await loadBulletins();
-      setLoading(false);
     })();
-  }, []);
 
-  const togglePin = async (id: string, nextPinned: boolean) => {
-    if (!isAdmin) return;
+    return () => {
+      cancelled = true;
+    };
+  }, [loadBulletins]);
 
-    const { error } = await supabase
-      .from("bulletins")
-      .update({ pinned: nextPinned })
-      .eq("id", id);
+  const togglePin = useCallback(
+    async (id: string, nextPinned: boolean) => {
+      if (!isAdmin) return;
 
-    if (error) return Alert.alert("Error", error.message);
+      const { error } = await supabase
+        .from("bulletins")
+        .update({ pinned: nextPinned })
+        .eq("id", id);
 
-    setBulletins((prev) =>
-      prev
-        .map((b) => (b.id === id ? { ...b, pinned: nextPinned } : b))
-        .sort(
-          (a, b) =>
-            Number(b.pinned) - Number(a.pinned) ||
-            +new Date(b.created_at) - +new Date(a.created_at)
-        )
-    );
-  };
+      if (error) return Alert.alert("Error", error.message);
+
+      setBulletins((prev) =>
+        prev
+          .map((b) => (b.id === id ? { ...b, pinned: nextPinned } : b))
+          .sort(
+            (a, b) =>
+              Number(b.pinned) - Number(a.pinned) ||
+              +new Date(b.created_at) - +new Date(a.created_at)
+          )
+      );
+    },
+    [isAdmin]
+  );
 
   return {
     bulletins,
