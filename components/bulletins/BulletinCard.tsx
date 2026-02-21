@@ -31,7 +31,7 @@ export default function BulletinCard({
         styles.cardBase,
         item.pinned ? styles.cardPinned : styles.cardNormal,
       ]}
-      onPress={() => router.push(`/(tabs)/bulletins/${item.id}`)}
+      onPress={() => router.push(`/bulletins/${item.id}`)}
     >
       {item.pinned ? (
         <Text style={styles.important}>IMPORTANT PINNED ALERT</Text>

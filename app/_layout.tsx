@@ -42,14 +42,15 @@ export default function RootLayout() {
   return (
     <LinearGradient colors={["#fff", "#82af43"]} style={{ flex: 1 }}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-      <Stack
-        screenOptions={{
-          gestureEnabled: true,
-          headerShown: false,
-          contentStyle: { backgroundColor: "transparent" },
-          animation: "none"
-        }}
-      />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "transparent" },
+            // REMOVE animation: "none"
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        />
       </GestureHandlerRootView>
     </LinearGradient>
   );

@@ -49,10 +49,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="cloud.fill" color={color} />,
         }}
       />
-      <Tabs.Screen name="bulletins/new" options={{ href: null }} />
-      <Tabs.Screen name="bulletins/[id]" options={{ href: null }} />
-      <Tabs.Screen name="bulletins/[id]/edit" options={{ href: null }} />
-      <Tabs.Screen name="staffDirectory" options={{ href: null }} />
     </Tabs>
   );
 }

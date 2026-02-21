@@ -4,17 +4,20 @@ import { RichText, TenTapStartKit, useEditorBridge } from "@10play/tentap-editor
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Alert,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 const BUCKET = "assets";
 const IMG_PREFIX = "bulletins/";
 
-type PendingImg = {
-  id: string;
-  contentType: string; // image/jpeg...
-  ext: string;         // jpg/png...
-  base64: string;      // preview + upload
-};
+type PendingImg = { id: string; contentType: string; ext: string; base64: string };
 
 export default function NewBulletin() {
   const [title, setTitle] = useState("");
@@ -22,12 +25,30 @@ export default function NewBulletin() {
   const pendingRef = useRef<PendingImg[]>([]);
   pendingRef.current = pending;
 
+  const [kbHeight, setKbHeight] = useState(0);
+
   const editor = useEditorBridge({
     autofocus: false,
     avoidIosKeyboard: true,
-    initialContent: "",
-    extensions: TenTapStartKit,
+    initialContent: "<p></p>",
+    bridgeExtensions: TenTapStartKit,
   });
+
+  useEffect(() => {
+    const s = Keyboard.addListener("keyboardDidShow", (e) => {
+      setKbHeight(e?.endCoordinates?.height ?? 260);
+    });
+    const h = Keyboard.addListener("keyboardDidHide", () => setKbHeight(0));
+    return () => {
+      s.remove();
+      h.remove();
+    };
+  }, []);
+
+  const dismissAll = () => {
+    editor?.blur?.();
+    Keyboard.dismiss();
+  };
 
   const active = useMemo(() => {
     const s = editor?.getEditorState?.();
@@ -42,55 +63,6 @@ export default function NewBulletin() {
   useEffect(() => {
     editor?.focus?.();
   }, []);
-
-  const insertImageHtml = (id: string, src: string) => {
-    editor.focus();
-    // data-local-id lets us swap src later (to supabase url)
-    editor.insertContent?.(
-      `<img data-local-id="${id}" src="${src}" style="max-width: 100%; height: auto;" />`
-    );
-  };
-
-  const pickImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return Alert.alert("Permission needed");
-
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-      base64: true,
-    });
-    if (res.canceled) return;
-
-    const asset = res.assets?.[0];
-    if (!asset) return;
-
-    const b64 = asset.base64;
-    if (!b64) return Alert.alert("Image error", "No preview data returned.");
-
-    const uri = asset.uri || "";
-    const ext = (uri.split(".").pop() || "jpg").toLowerCase();
-    const contentType =
-      asset.mimeType || `image/${ext === "jpg" ? "jpeg" : ext}`;
-
-    const id = `img_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-    // keep it for later upload (optional)
-    setPending((p) => [...p, { id, ext, contentType, base64: b64 }]);
-
-    // ✅ show immediately in the editor
-    const dataUrl = `data:${contentType};base64,${b64}`;
-
-    editor.focus();
-    // TenTap usually prefers setImage over raw <img> html
-    if (editor.setImage) {
-      editor.setImage(dataUrl);
-    } else {
-      editor.insertContent?.(
-        `<img src="${dataUrl}" style="max-width:100%;height:auto;" />`
-      );
-    }
-  };
 
   const base64ToUint8 = (b64: string) => {
     const bin = atob(b64);
@@ -109,23 +81,45 @@ export default function NewBulletin() {
 
     if (error) throw new Error(error.message);
 
-    const { data } = supabase.storage.from(BUCKET).getPublicUrl(objectPath);
-    return data.publicUrl;
+    return supabase.storage.from(BUCKET).getPublicUrl(objectPath).data.publicUrl;
   };
 
-  const swapImageSrcs = (html: string, idToUrl: Record<string, string>) => {
-    // Finds <img ... data-local-id="X" ...> and swaps src to final URL, removing data-local-id
-    return html.replace(
-      /<img([^>]*?)data-local-id="([^"]+)"([^>]*?)>/g,
-      (full, a, id, b) => {
-        const url = idToUrl[id];
-        if (!url) return full;
+  const swapImageSrcs = (html: string, idToUrl: Record<string, string>) =>
+    html.replace(/<img([^>]*?)data-local-id="([^"]+)"([^>]*?)>/g, (full, a, id, b) => {
+      const url = idToUrl[id];
+      if (!url) return full;
 
-        let tag = `<img${a}${b}>`;
-        tag = tag.replace(/\sdata-local-id="[^"]+"/, "");
-        if (tag.includes('src="')) return tag.replace(/src="[^"]*"/, `src="${url}"`);
-        return tag.replace("<img", `<img src="${url}"`);
-      }
+      let tag = `<img${a}${b}>`;
+      tag = tag.replace(/\sdata-local-id="[^"]+"/, "");
+      if (tag.includes('src="')) return tag.replace(/src="[^"]*"/, `src="${url}"`);
+      return tag.replace("<img", `<img src="${url}"`);
+    });
+
+  const pickImage = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return Alert.alert("Permission needed");
+
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      base64: true,
+    });
+    if (res.canceled) return;
+
+    const asset = res.assets?.[0];
+    if (!asset?.base64) return Alert.alert("Image error", "No preview data returned.");
+
+    const uri = asset.uri || "";
+    const ext = (uri.split(".").pop() || "jpg").toLowerCase();
+    const contentType = asset.mimeType || `image/${ext === "jpg" ? "jpeg" : ext}`;
+
+    const id = `img_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    setPending((p) => [...p, { id, ext, contentType, base64: asset.base64! }]);
+
+    const dataUrl = `data:${contentType};base64,${asset.base64}`;
+    editor.focus?.();
+    editor.insertContent?.(
+      `<img data-local-id="${id}" src="${dataUrl}" style="max-width:100%;height:auto;" />`
     );
   };
 
@@ -145,12 +139,9 @@ export default function NewBulletin() {
 
     let body_html = await editor.getHTML();
 
-    // Upload any picked images and convert HTML from base64 previews -> real URLs
     try {
       const idToUrl: Record<string, string> = {};
-      for (const img of pendingRef.current) {
-        idToUrl[img.id] = await uploadImage(img);
-      }
+      for (const img of pendingRef.current) idToUrl[img.id] = await uploadImage(img);
       body_html = swapImageSrcs(body_html, idToUrl);
     } catch (e: any) {
       return Alert.alert("Image upload failed", e?.message || "Unknown error");
@@ -165,6 +156,7 @@ export default function NewBulletin() {
     if (error) return Alert.alert("Error", error.message);
 
     setPending([]);
+    dismissAll();
     router.back();
   };
 
@@ -178,23 +170,17 @@ export default function NewBulletin() {
         onChangeText={setTitle}
         placeholder="Title"
         style={styles.input}
+        returnKeyType="done"
+        onSubmitEditing={dismissAll}
       />
 
       <Text style={styles.label}>Body</Text>
 
       <View style={styles.toolbar}>
-        <ToolBtn label="b" active={active.bold} onPress={() => { editor.focus(); editor.toggleBold?.(); }} />
-        <ToolBtn
-          label="i"
-          active={active.italic}
-          labelStyle={{ fontStyle: "italic" }}
-          onPress={() => {
-            editor.focus();
-            editor.toggleItalic?.();
-          }}
-        />
-        <ToolBtn label="• List" active={active.ul} onPress={() => { editor.focus(); editor.toggleBulletList?.(); }} />
-        <ToolBtn label="1. List" active={active.ol} onPress={() => { editor.focus(); editor.toggleOrderedList?.(); }} />
+        <ToolBtn label="b" active={active.bold} onPress={() => { editor.focus?.(); editor.toggleBold?.(); }} />
+        <ToolBtn label="i" active={active.italic} labelStyle={{ fontStyle: "italic" }} onPress={() => { editor.focus?.(); editor.toggleItalic?.(); }} />
+        <ToolBtn label="• List" active={active.ul} onPress={() => { editor.focus?.(); editor.toggleBulletList?.(); }} />
+        <ToolBtn label="1. List" active={active.ol} onPress={() => { editor.focus?.(); editor.toggleOrderedList?.(); }} />
         <ToolBtn label="Img" onPress={pickImage} />
       </View>
 
@@ -203,7 +189,7 @@ export default function NewBulletin() {
       </View>
 
       <View style={styles.actions}>
-        <Pressable onPress={() => router.back()} style={[styles.actionBtn, styles.actionGhost]}>
+        <Pressable onPress={() => { dismissAll(); router.back(); }} style={[styles.actionBtn, styles.actionGhost]}>
           <Text style={styles.actionGhostText}>Cancel</Text>
         </Pressable>
 
@@ -211,6 +197,14 @@ export default function NewBulletin() {
           <Text style={styles.actionPrimaryText}>Create</Text>
         </Pressable>
       </View>
+
+      {kbHeight > 0 ? (
+        <View style={[styles.floatingDoneWrap, { bottom: kbHeight + 12 }]} pointerEvents="box-none">
+          <Pressable onPress={dismissAll} style={styles.floatingDone}>
+            <Text style={styles.floatingDoneText}>Done</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -227,29 +221,14 @@ function ToolBtn({
   labelStyle?: any;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.toolBtn,
-        active ? styles.toolBtnActive : undefined,
-      ]}
-    >
-      <Text
-        style={[
-          styles.toolText,
-          active ? styles.toolTextActive : undefined,
-          labelStyle, // 👈 custom style
-        ]}
-      >
-        {label}
-      </Text>
+    <Pressable onPress={onPress} style={[styles.toolBtn, active ? styles.toolBtnActive : undefined]}>
+      <Text style={[styles.toolText, active ? styles.toolTextActive : undefined, labelStyle]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, padding: 16, paddingTop: 60 },
-  h1: { fontSize: 22, fontWeight: "900", marginBottom: 16, color: "#111827" },
 
   label: { fontWeight: "800", marginTop: 12, marginBottom: 6, color: "#111827" },
   input: {
@@ -270,9 +249,29 @@ const styles = StyleSheet.create({
   editorWrap: { flex: 1, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, padding: 10, backgroundColor: "#fff" },
 
   actions: { flexDirection: "row", justifyContent: "space-between", gap: 10, marginTop: 12 },
-  actionBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12 },
+  actionBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, flex: 1, alignItems: "center" },
   actionGhost: { borderWidth: 1, borderColor: "#e5e7eb", backgroundColor: "#fff" },
   actionGhostText: { fontWeight: "800", color: "#111827" },
   actionPrimary: { backgroundColor: "#111827" },
   actionPrimaryText: { fontWeight: "900", color: "#fff" },
+
+  floatingDoneWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    alignItems: "flex-end",
+  },
+  floatingDone: {
+    backgroundColor: "#111827",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  floatingDoneText: { color: "#fff", fontWeight: "900", fontSize: 16 },
 });

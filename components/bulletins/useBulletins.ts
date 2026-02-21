@@ -7,7 +7,6 @@ type Role = "resident" | "admin" | null;
 export type Bulletin = {
   id: string;
   title: string;
-  body_html: string | null;
   pinned: boolean;
   created_at: string;
 };
@@ -30,7 +29,7 @@ export function useBulletins() {
   const loadBulletins = useCallback(async () => {
     const { data, error } = await supabase
       .from("bulletins")
-      .select("id,title,body_html,pinned,created_at")
+      .select("id,title,pinned,created_at")
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
 
