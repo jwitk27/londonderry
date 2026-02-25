@@ -5,9 +5,10 @@ import { styles as bulletinStyles } from "@/components/bulletins/ui";
 import { useBulletins } from "@/components/bulletins/useBulletins";
 import PageHeader from "@/components/ui/PageHeader";
 import WeatherWidget from "@/components/weather/WeatherWidget";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
+  AppState,
   ImageBackground,
   Pressable,
   StyleSheet,
@@ -20,94 +21,114 @@ const BUCKET = "assets";
 const STAFF_BG_KEY = "staff/staff-link-background.jpg";
 
 export default function HomeScreen() {
-  const b = useBulletins();
-  const [staffBgUrl, setStaffBgUrl] = useState<string | null>(null);
+    const b = useBulletins();
+    const [staffBgUrl, setStaffBgUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Prefer public URL (best for images)
-    const pub = supabase.storage.from(BUCKET).getPublicUrl(STAFF_BG_KEY);
-    if (pub?.data?.publicUrl) {
-      setStaffBgUrl(pub.data.publicUrl);
-      return;
-    }
+    // Reload whenever you navigate back to Home tab
+    useFocusEffect(
+        useCallback(() => {
+            b.reload();
+        }, [b.reload]),
+    );
 
-    // Fallback to signed URL if bucket is private
-    (async () => {
-      const { data } = await supabase.storage
-        .from(BUCKET)
-        .createSignedUrl(STAFF_BG_KEY, 60 * 60);
+    // Reload whenever app becomes active (reopen app)
+    useEffect(() => {
+        const sub = AppState.addEventListener("change", (state) => {
+            if (state === "active") b.reload();
+        });
+        return () => sub.remove();
+    }, [b.reload]);
 
-      if (data?.signedUrl) setStaffBgUrl(data.signedUrl);
-    })();
-  }, []);
-
-  return (
-    <View style={bulletinStyles.screen}>
-      <PageHeader title="Home" sub={b.userLabel} />
-
-      <BulletinList
-        bulletins={b.bulletins}
-        loading={b.loading}
-        isAdmin={b.isAdmin}
-        onTogglePin={b.togglePin}
-        onRefresh={b.reload}
-        footer={
-          <View>
-            <Pressable onPress={() => router.push("/weather")}>
-              <WeatherWidget />
-            </Pressable>
-
-            {/* Staff Directory Card */}
-            <Pressable
-              onPress={() => router.push("/staffDirectory")}
-              style={{ marginTop: 20 }}
-            >
-              <ImageBackground
-                source={staffBgUrl ? { uri: staffBgUrl } : undefined}
-                resizeMode="cover"
-                imageStyle={ui.staffImg}
-                style={ui.staffCard}
-              >
-                {/* bluish overlay */}
-                <View style={ui.blueOverlay} />
-                <Text style={ui.staffTitle}>Staff Directory</Text>
-              </ImageBackground>
-            </Pressable>
-          </View>
+    useEffect(() => {
+        // Prefer public URL (best for images)
+        const pub = supabase.storage.from(BUCKET).getPublicUrl(STAFF_BG_KEY);
+        if (pub?.data?.publicUrl) {
+            setStaffBgUrl(pub.data.publicUrl);
+            return;
         }
-      />
 
-      {b.isAdmin && <BulletinFab />}
-    </View>
-  );
+        // Fallback to signed URL if bucket is private
+        (async () => {
+            const { data } = await supabase.storage
+                .from(BUCKET)
+                .createSignedUrl(STAFF_BG_KEY, 60 * 60);
+
+            if (data?.signedUrl) setStaffBgUrl(data.signedUrl);
+        })();
+    }, []);
+
+    return (
+        <View style={bulletinStyles.screen}>
+            <PageHeader title="Home" sub={b.userLabel} />
+
+            <BulletinList
+                bulletins={b.bulletins}
+                loading={b.loading}
+                isAdmin={b.isAdmin}
+                onTogglePin={b.togglePin}
+                onDelete={b.deleteBulletin}
+                onRefresh={b.reload}
+                footer={
+                    <View>
+                        <Pressable onPress={() => router.push("/weather")}>
+                            <WeatherWidget />
+                        </Pressable>
+
+                        {/* Staff Directory Card */}
+                        <Pressable
+                            onPress={() => router.push("/staffDirectory")}
+                            style={{ marginTop: 20 }}
+                        >
+                            <ImageBackground
+                                source={
+                                    staffBgUrl ? { uri: staffBgUrl } : undefined
+                                }
+                                resizeMode="cover"
+                                imageStyle={ui.staffImg}
+                                style={ui.staffCard}
+                            >
+                                {/* bluish overlay */}
+                                <View style={ui.blueOverlay} />
+                                <Text style={ui.staffTitle}>
+                                    Staff Directory
+                                </Text>
+                            </ImageBackground>
+                        </Pressable>
+                    </View>
+                }
+            />
+
+            {b.isAdmin && <BulletinFab />}
+        </View>
+    );
 }
 
 const ui = StyleSheet.create({
-  staffCard: {
-    width: "100%",          // IMPORTANT: fixes invisible image
-    height: 160,
-    borderRadius: 22,
-    overflow: "hidden",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  staffImg: {
-    borderRadius: 22,
-  },
-  blueOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(56, 189, 248, 0.35)", // bluish overlay
-  },
-  staffTitle: {
-    color: "white",
-    fontSize: 38,
-    fontWeight: "800",
-    textAlign: "center",
-    paddingHorizontal: 12,
-  },
-  staffLinkText: {
-    marginTop: 10,
-    color: "#767480ff",
-    textDecorationLine: "underline",
-  },
+    staffCard: {
+        width: "100%",
+        height: 160,
+        borderRadius: 22,
+        overflow: "hidden",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    staffImg: {
+        borderRadius: 22,
+    },
+    blueOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(56, 189, 248, 0.35)",
+    },
+    staffTitle: {
+        color: "white",
+        fontSize: 38,
+        fontWeight: "800",
+        textAlign: "center",
+        paddingHorizontal: 12,
+    },
+    staffLinkText: {
+        marginTop: 10,
+        color: "#767480ff",
+        textDecorationLine: "underline",
+    },
 });

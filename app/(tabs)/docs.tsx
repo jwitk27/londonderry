@@ -1,4 +1,6 @@
+// app/(tabs)/docs.tsx
 import PageHeader from "@/components/ui/PageHeader";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -11,6 +13,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     View,
 } from "react-native";
 import { WebView } from "react-native-webview";
@@ -24,21 +27,31 @@ type Doc = {
     is_priority: boolean;
 };
 
-const BUCKET = "docs"; // <-- set to your Storage bucket name
+const BUCKET = "docs"; // <-- your Storage bucket name
+const DOCS_PASS = "TredAvon2026";
+const PASS_KEY = "docs_unlocked_v1";
 
 export default function DocumentsScreen() {
     const [docs, setDocs] = useState<Doc[]>([]);
     const [uid, setUid] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
 
-    const [uploading, setUploading] = useState(false);
     const [loadingDocs, setLoadingDocs] = useState(true);
+    const [uploading, setUploading] = useState(false);
 
+    // page lock
+    const [unlocked, setUnlocked] = useState(false);
+    const [pass, setPass] = useState("");
+
+    // viewer
     const [openUrl, setOpenUrl] = useState<string | null>(null);
     const [webLoading, setWebLoading] = useState(true);
 
     useEffect(() => {
         (async () => {
+            const v = await AsyncStorage.getItem(PASS_KEY);
+            if (v === "1") setUnlocked(true);
+
             const {
                 data: { user },
             } = await supabase.auth.getUser();
@@ -46,14 +59,13 @@ export default function DocumentsScreen() {
             setUid(user?.id ?? null);
 
             if (user?.id) {
-                const { data, error } = await supabase
+                const { data } = await supabase
                     .from("profiles")
                     .select("role")
                     .eq("auth_uid", user.id)
                     .maybeSingle();
 
-                if (error) console.log("profiles error", error);
-                setIsAdmin(data?.role === "admin");
+                setIsAdmin(data?.role === "super");
             }
 
             await refresh();
@@ -163,7 +175,7 @@ export default function DocumentsScreen() {
             return Alert.alert("Open failed", error?.message || "No URL");
         }
 
-        // Force inline viewing (prevents “download” in many cases)
+        // inline viewer (prevents download behavior)
         const viewerUrl = `https://drive.google.com/viewerng/viewer?embedded=true&url=${encodeURIComponent(
             data.signedUrl,
         )}`;
@@ -182,26 +194,67 @@ export default function DocumentsScreen() {
                 text: "Delete",
                 style: "destructive",
                 onPress: async () => {
-                    try {
-                        const rm = await supabase.storage
-                            .from(BUCKET)
-                            .remove([doc.path]);
-                        if (rm.error) throw rm.error;
+                    const rm = await supabase.storage
+                        .from(BUCKET)
+                        .remove([doc.path]);
+                    if (rm.error)
+                        return Alert.alert(
+                            "Storage delete failed",
+                            rm.error.message,
+                        );
 
-                        const del = await supabase
-                            .from("documents")
-                            .delete()
-                            .eq("id", doc.id);
-                        if (del.error) throw del.error;
+                    const del = await supabase
+                        .from("documents")
+                        .delete()
+                        .eq("id", doc.id);
+                    if (del.error)
+                        return Alert.alert(
+                            "Row delete failed",
+                            del.error.message,
+                        );
 
-                        await refresh();
-                    } catch (e: any) {
-                        Alert.alert("Delete failed", e?.message || String(e));
-                    }
+                    await refresh();
                 },
             },
         ]);
     };
+
+    // --------- LOCK SCREEN ----------
+    if (!unlocked) {
+        return (
+            <View style={styles.screen}>
+                <PageHeader title="Documents" />
+
+                <Text style={{ marginTop: 12, fontWeight: "800" }}>
+                    Enter password
+                </Text>
+
+                <TextInput
+                    value={pass}
+                    onChangeText={setPass}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder="Password"
+                    style={styles.passInput}
+                />
+
+                <View style={{ marginTop: 12 }}>
+                    <Button
+                        title="Unlock"
+                        onPress={async () => {
+                            if (pass === DOCS_PASS) {
+                                setUnlocked(true);
+                                await AsyncStorage.setItem(PASS_KEY, "1"); // stays unlocked on this device
+                            } else {
+                                Alert.alert("Wrong password");
+                            }
+                        }}
+                    />
+                </View>
+            </View>
+        );
+    }
 
     const DocRow = ({
         item,
@@ -213,13 +266,13 @@ export default function DocumentsScreen() {
         <View style={styles.rowWrap}>
             <Pressable
                 onPress={() => openDoc(item.path)}
-                style={priorityStyle ? styles.row : styles.rowPriority}
+                style={priorityStyle ? styles.rowPriority : styles.row}
             >
                 <Text
                     style={
                         priorityStyle
-                            ? styles.rowTitle
-                            : styles.rowTitlePriority
+                            ? styles.rowTitlePriority
+                            : styles.rowTitle
                     }
                     numberOfLines={2}
                 >
@@ -230,6 +283,7 @@ export default function DocumentsScreen() {
             {isAdmin && (
                 <Pressable
                     onPress={() => deleteDoc(item)}
+                    hitSlop={12}
                     style={styles.deleteBtn}
                 >
                     <Text style={styles.deleteText}>Delete</Text>
@@ -269,9 +323,7 @@ export default function DocumentsScreen() {
                         <FlatList
                             data={general}
                             keyExtractor={(d) => d.id}
-                            renderItem={({ item }) => (
-                                <DocRow item={item} priorityStyle />
-                            )}
+                            renderItem={({ item }) => <DocRow item={item} />}
                             ItemSeparatorComponent={() => (
                                 <View style={{ height: 10 }} />
                             )}
@@ -290,7 +342,7 @@ export default function DocumentsScreen() {
                                 data={priority}
                                 keyExtractor={(d) => d.id}
                                 renderItem={({ item }) => (
-                                    <DocRow item={item} />
+                                    <DocRow item={item} priorityStyle />
                                 )}
                                 ItemSeparatorComponent={() => (
                                     <View style={{ height: 10 }} />
@@ -340,6 +392,14 @@ export default function DocumentsScreen() {
 const styles = StyleSheet.create({
     screen: { flex: 1, padding: 16 },
 
+    passInput: {
+        marginTop: 10,
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+
     center: {
         flex: 1,
         alignItems: "center",
@@ -349,7 +409,21 @@ const styles = StyleSheet.create({
     muted: { opacity: 0.7, marginTop: 8 },
     empty: { color: "#6b7280", marginTop: 12 },
 
-    rowWrap: { flexDirection: "row", alignItems: "center", gap: 10 },
+    priorityTitle: {
+        color: "#5c7bbfff",
+        fontWeight: "900",
+        textDecorationLine: "underline",
+        marginBottom: 10,
+        fontSize: 20,
+    },
+
+    rowWrap: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+    },
+
     row: {
         flex: 1,
         backgroundColor: "#84a83a",
@@ -359,22 +433,24 @@ const styles = StyleSheet.create({
     },
     rowTitle: { fontWeight: "900", color: "#fff", fontSize: 16 },
 
-    deleteBtn: {
+    // priority: blue text, no background
+    rowPriority: {
+        flex: 1,
+        backgroundColor: "transparent",
         paddingVertical: 8,
-        paddingHorizontal: 10,
+        paddingHorizontal: 0,
+    },
+    rowTitlePriority: { color: "#5c7bbfff", fontWeight: "700", fontSize: 16 },
+
+    deleteBtn: {
+        paddingVertical: 10,
+        paddingHorizontal: 12,
         borderRadius: 10,
         borderWidth: 1,
-        opacity: 0.9,
+        backgroundColor: "white",
+        zIndex: 10,
     },
     deleteText: { fontWeight: "800" },
-
-    priorityTitle: {
-        color: "#5c7bbfff",
-        fontWeight: "900",
-        textDecorationLine: "underline",
-        marginBottom: 10,
-        fontSize: 20,
-    },
 
     modalHeader: {
         paddingTop: 14,
@@ -398,12 +474,4 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         alignItems: "center",
     },
-
-    rowPriority: {
-        flex: 1,
-        paddingVertical: 8,
-        paddingHorizontal: 0,
-        backgroundColor: "transparent",
-    },
-    rowTitlePriority: { color: "#5c7bbfff", fontWeight: "700", fontSize: 16 },
 });
