@@ -23,7 +23,7 @@ export function useBulletins() {
     const userLabel = useMemo(() => {
         return userEmail
             ? `Logged in as ${userEmail}${role ? ` (${role})` : ""}`
-            : "Not logged in";
+            : "";
     }, [userEmail, role]);
 
     const loadBulletins = useCallback(async () => {

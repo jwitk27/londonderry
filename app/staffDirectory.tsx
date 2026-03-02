@@ -5,16 +5,16 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 const BUCKET = "assets";
@@ -254,14 +254,29 @@ export default function StaffDirectoryScreen() {
             </View>
 
             <View style={{ flex: 1 }}>
-                <Text style={styles.rowName}>{item.name}</Text>
-                <Text style={styles.rowRole}>{item.role_title}</Text>
+            <Text style={[styles.rowName, { fontSize: 20 }]}>
+                {item.name}
+            </Text>
 
-                {item.phone || item.email ? (
-                    <Text style={styles.rowMeta}>
-                        {[item.phone, item.email].filter(Boolean).join(" · ")}
+            <Text style={[styles.rowRole, { fontSize: 17, marginTop: 2 }]}>
+                {item.role_title}
+            </Text>
+
+            {item.phone || item.email ? (
+                <View style={{ marginTop: 6 }}>
+                {item.phone ? (
+                    <Text style={[styles.rowMeta, { fontSize: 16 }]}>
+                    {item.phone}
                     </Text>
                 ) : null}
+
+                {item.email ? (
+                    <Text style={[styles.rowMeta, { fontSize: 16, marginTop: 4 }]}>
+                    {item.email}
+                    </Text>
+                ) : null}
+                </View>
+            ) : null}
             </View>
 
             {isAdmin ? (

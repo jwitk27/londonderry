@@ -1,66 +1,45 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Redirect, Stack, useSegments } from "expo-router";
+import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "../lib/supabase";
 
 export default function RootLayout() {
-    const [loading, setLoading] = useState(true);
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const segments = useSegments();
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        (async () => {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-            setIsLoggedIn(!!session);
-            setLoading(false);
+  useEffect(() => {
+    // Just warm up auth + avoid a flash on first load
+    (async () => {
+      await supabase.auth.getSession();
+      setLoading(false);
+    })();
+  }, []);
 
-            const { data: sub } = supabase.auth.onAuthStateChange((_e, s) =>
-                setIsLoggedIn(!!s),
-            );
-            return () => sub.subscription.unsubscribe();
-        })();
-    }, []);
-
-    if (loading) {
-        return (
-            <LinearGradient colors={["#fff", "#82af43"]} style={{ flex: 1 }}>
-                <View
-                    style={{
-                        flex: 1,
-                        justifyContent: "center",
-                        alignItems: "center",
-                    }}
-                >
-                    <ActivityIndicator />
-                </View>
-            </LinearGradient>
-        );
-    }
-
-    const atAuth =
-        segments.length > 0 &&
-        (segments[0] === "login" || segments[0] === "signup");
-
-    if (!isLoggedIn && !atAuth) return <Redirect href="/login" />;
-    if (isLoggedIn && atAuth) return <Redirect href="/" />;
-
+  if (loading) {
     return (
-        <LinearGradient colors={["#fff", "#82af43"]} style={{ flex: 1 }}>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-                <Stack
-                    screenOptions={{
-                        headerShown: false,
-                        contentStyle: { backgroundColor: "transparent" },
-                        animation: "none",
-                        gestureEnabled: true,
-                        fullScreenGestureEnabled: true,
-                    }}
-                />
-            </GestureHandlerRootView>
-        </LinearGradient>
+      <LinearGradient colors={["#fff", "#82af43"]} style={{ flex: 1 }}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator />
+        </View>
+      </LinearGradient>
     );
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <LinearGradient colors={["#fff", "#82af43"]} style={{ flex: 1 }}>
+        <Stack
+          initialRouteName="(tabs)"
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "transparent" },
+            animation: "none",
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        />
+      </LinearGradient>
+    </GestureHandlerRootView>
+  );
 }
