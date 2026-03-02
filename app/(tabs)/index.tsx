@@ -150,21 +150,12 @@ export default function HomeScreen() {
     loadFromStorage(ASSETS_BUCKET, HAPPENINGS_IMG_KEY, setHappeningsBgUrl);
   }, []);
 
-    const openPdf = async (title: string, key: string) => {
-        setPdfTitle(title);
-        setPdfUrl(null);
-        setPdfOpen(true);
+    const openPdf = (title: string, key: string) => {
+    setPdfTitle(title);
+    setPdfOpen(true);
 
-        // ALWAYS use signed URL (works for public + private)
-        const { data, error } = await supabase.storage
-            .from(DOCS_BUCKET)
-            .createSignedUrl(key, 60 * 60);
-
-        if (data?.signedUrl) {
-            setPdfUrl(data.signedUrl);
-        } else {
-            console.log("PDF ERROR", error);
-        }
+    const { data } = supabase.storage.from(DOCS_BUCKET).getPublicUrl(key);
+    setPdfUrl(data.publicUrl);
     };
 
   return (
