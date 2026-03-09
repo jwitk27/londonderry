@@ -124,7 +124,9 @@ export default function NewBulletin() {
   };
 
   const create = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return Alert.alert("Not logged in");
 
     const { data: prof, error: pErr } = await supabase
@@ -154,6 +156,14 @@ export default function NewBulletin() {
     });
 
     if (error) return Alert.alert("Error", error.message);
+
+    const { error: notifyError } = await supabase.functions.invoke("notify-bulletin", {
+      body: { title: title.trim() },
+    });
+
+    if (notifyError) {
+      console.log("Push notification error:", notifyError.message);
+    }
 
     setPending([]);
     dismissAll();

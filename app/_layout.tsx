@@ -3,15 +3,22 @@ import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { registerForPush } from "../lib/push";
 import { supabase } from "../lib/supabase";
 
 export default function RootLayout() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Just warm up auth + avoid a flash on first load
     (async () => {
       await supabase.auth.getSession();
+
+      // Register device for push notifications
+      const token = await registerForPush();
+      if (token) {
+        await supabase.from("push_tokens").upsert({ token });
+      }
+
       setLoading(false);
     })();
   }, []);
