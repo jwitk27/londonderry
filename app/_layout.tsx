@@ -11,15 +11,18 @@ export default function RootLayout() {
 
   useEffect(() => {
     (async () => {
-      await supabase.auth.getSession();
+      try {
+        await supabase.auth.getSession();
 
-      // Register device for push notifications
-      const token = await registerForPush();
-      if (token) {
-        await supabase.from("push_tokens").upsert({ token });
+        const token = await registerForPush();
+        if (token) {
+          await supabase.from("push_tokens").upsert({ token });
+        }
+      } catch (e) {
+        console.log("push setup error", e);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     })();
   }, []);
 
